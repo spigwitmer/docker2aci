@@ -43,6 +43,7 @@ import (
 // Docker images.
 type CommonConfig struct {
 	Squash                bool               // squash the layers in one file
+	OutFile               string             // where to put the resulting ACI(s)
 	OutputDir             string             // where to put the resulting ACI
 	TmpDir                string             // directory to use for temporary files
 	Compression           common.Compression // which compression to use for the resulting file(s)
@@ -194,7 +195,7 @@ func (c *converter) convert() ([]string, error) {
 	// acirenderer expects images in order from upper to base layer
 	images = util.ReverseImages(images)
 	if c.config.Squash {
-		squashedImagePath, err := squashLayers(images, conversionStore, *parsedDockerURL, c.config.OutputDir, c.config.Compression, c.config.Debug)
+		squashedImagePath, err := squashLayers(images, conversionStore, *parsedDockerURL, c.config.OutputDir, c.config.OutFile, c.config.Compression, c.config.Debug)
 		if err != nil {
 			return nil, fmt.Errorf("error squashing image: %v", err)
 		}
@@ -206,7 +207,7 @@ func (c *converter) convert() ([]string, error) {
 
 // squashLayers receives a list of ACI layer file names ordered from base image
 // to application image and squashes them into one ACI
-func squashLayers(images []acirenderer.Image, aciRegistry acirenderer.ACIRegistry, parsedDockerURL common.ParsedDockerURL, outputDir string, compression common.Compression, debug log.Logger) (path string, err error) {
+func squashLayers(images []acirenderer.Image, aciRegistry acirenderer.ACIRegistry, parsedDockerURL common.ParsedDockerURL, outputDir string, outFile string, compression common.Compression, debug log.Logger) (path string, err error) {
 	debug.Println("Squashing layers...")
 	debug.Println("Rendering ACI...")
 	renderedACI, err := acirenderer.GetRenderedACIFromList(images, aciRegistry)
@@ -218,7 +219,10 @@ func squashLayers(images []acirenderer.Image, aciRegistry acirenderer.ACIRegistr
 		return "", fmt.Errorf("error getting manifests: %v", err)
 	}
 
-	squashedFilename := getSquashedFilename(parsedDockerURL)
+	squashedFilename := outFile
+	if outFile == "" {
+		squashedFilename = getSquashedFilename(parsedDockerURL)
+	}
 	squashedImagePath := filepath.Join(outputDir, squashedFilename)
 
 	squashedTempFile, err := ioutil.TempFile(outputDir, "docker2aci-squashedFile-")

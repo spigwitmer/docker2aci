@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/appc/docker2aci/lib"
@@ -36,6 +37,7 @@ var (
 	flagInsecureSkipVerify bool
 	flagInsecureAllowHTTP  bool
 	flagCompression        string
+	flagOutfile            string
 	flagVersion            bool
 )
 
@@ -46,6 +48,7 @@ func init() {
 	flag.BoolVar(&flagInsecureSkipVerify, "insecure-skip-verify", false, "Don't verify certificates when fetching images")
 	flag.BoolVar(&flagInsecureAllowHTTP, "insecure-allow-http", false, "Uses unencrypted connections when fetching images")
 	flag.StringVar(&flagCompression, "compression", "gzip", "Type of compression to use; allowed values: gzip, none")
+	flag.StringVar(&flagOutfile, "output", "", "Writing resulting ACI(s) to this file, must be a directory if -nosquash is specified")
 	flag.BoolVar(&flagVersion, "version", false, "Print version")
 }
 
@@ -82,9 +85,29 @@ func runDocker2ACI(arg string) error {
 		return fmt.Errorf("unknown compression method: %s", flagCompression)
 	}
 
+	outputDir := "."
+	outFile := ""
+	if flagOutfile != "" {
+		if squash {
+			outputDir = filepath.Dir(flagOutfile)
+			outFile = filepath.Base(flagOutfile)
+		} else {
+			outputDir = flagOutfile
+		}
+
+		outputDirStat, err := os.Stat(outputDir)
+		if err != nil {
+			return fmt.Errorf("Cannot stat %s: %v", flagOutfile, err)
+		}
+		if !outputDirStat.Mode().IsDir() {
+			return fmt.Errorf("%s: not a directory", flagOutfile)
+		}
+	}
+
 	cfg := docker2aci.CommonConfig{
 		Squash:      squash,
-		OutputDir:   ".",
+		OutputDir:   outputDir,
+		OutFile:     outFile,
 		TmpDir:      os.TempDir(),
 		Compression: compression,
 		Debug:       debug,
